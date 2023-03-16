@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import time
 from matplotlib.animation import FuncAnimation
 import matplotlib.ticker as ticker
-from statistics import mean 
+from statistics import mean
 
 
 class HP34401A:
@@ -30,7 +30,7 @@ class HP34401A:
         # self.send_command('VOLT:DC:RANGE ' + str(range))
         # self.send_command(':VOLT:DC:RES? ' + str(resolution))
         # self.send_command('MEAS:VOLT:DC? ' +  str(range) + str(",") + str(resolution))
-        self.send_command(':VOLT:DC:NPLC ' + str(10))
+        self.send_command(':VOLT:DC:NPLC ' + str(0.2))
 
     def set_current_dc_mode(self, range='AUTO', resolution=0.00001):
         self.send_command(':MEAS:CURR:DC')
@@ -69,7 +69,8 @@ class MultimeterData:
 
     def start(self):
         print("Auto DC Volts measuring", self.multimeter.set_voltage_dc_mode())
-        self.ani = FuncAnimation(self.fig, self.update, interval=0, blit=False, cache_frame_data=False)
+        self.ani = FuncAnimation(
+            self.fig, self.update, interval=0, blit=False, cache_frame_data=False)
         plt.show(block=True)
         exit(0)
 
@@ -84,7 +85,7 @@ class MultimeterData:
         current_time = time.time()
         self.data['time'].append(current_time)
         self.data['voltage'].append(voltage)
-        if self.data["time"].__len__() > 50:
+        if self.data["time"].__len__() > 500:
             self.data["time"].pop(0)
             self.data["voltage"].pop(0)
 
@@ -92,19 +93,20 @@ class MultimeterData:
 
     def plot_data(self):
         self.ax.clear()
-        self.ax.set_title("Real-time voltage measurement")
         self.ax.set_xlabel("Time (s)")
         self.ax.set_ylabel("Voltage (V)")
         self.ax.plot(self.data["time"], self.data["voltage"])
         self.ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%f'))
-        
+
         self.ax.plot(self.data["time"][-1], self.data["voltage"][-1], "ro")
         # text = f'{(self.data["voltage"][-1]):.9f} volt  '
         # self.ax.text(self.data["time"][-1], self.data["voltage"][-1], text, ha='right', va='bottom', fontsize=15)
 
         avg_volts = mean(self.data["voltage"])
         text = f'Current: {(self.data["voltage"][-1]):.9f}v;  Mean: {(avg_volts):.9f}v'
-        self.ax.text(self.data["time"][-1], self.ax.get_ybound()[1], text, ha='right', va='top', fontsize=12)
+        # self.ax.text(self.data["time"][-1], self.ax.get_ybound()[1]-(self.ax.get_ybound()[
+        #              1]-self.ax.get_ybound()[0])*0.03, text, ha='right', va='top', fontsize=12)
+        self.ax.set_title(text)
 
         self.fig.canvas.draw()
 
