@@ -6,10 +6,11 @@ import time
 from matplotlib.animation import FuncAnimation
 import matplotlib.ticker as ticker
 from statistics import mean
+import threading
 
 
 class HP34401A:
-    def __init__(self, port='/dev/ttyUSB0', baudrate=9600, timeout=10):
+    def __init__(self, port='/dev/ttyUSB0', baudrate=9600, timeout=1):
         self.ser = serial.Serial(
             port=port, baudrate=baudrate, timeout=timeout, stopbits=serial.STOPBITS_TWO)
 
@@ -32,7 +33,8 @@ class HP34401A:
         # self.send_command('VOLT:DC:RANGE ' + str(range))
         # self.send_command(':VOLT:DC:RES? ' + str(resolution))
         # self.send_command('MEAS:VOLT:DC? ' +  str(range) + str(",") + str(resolution))
-        self.send_command(':VOLT:DC:NPLC ' + str(0.2))
+        self.send_command(':VOLT:DC:NPLC ' + str(1))
+        time.sleep(0.1)
 
     def set_current_dc_mode(self, range='AUTO', resolution=0.00001):
         self.send_command(':MEAS:CURR:DC')
@@ -72,28 +74,40 @@ class MultimeterData:
     def start(self):
         print("Auto DC Volts measuring", self.multimeter.set_voltage_dc_mode())
         self.ani = FuncAnimation(
-            self.fig, self.update, interval=0, blit=False, cache_frame_data=False)
+            self.fig, self.plot_data, interval=0, blit=False, cache_frame_data=False)
+
+        self.t1 = threading.Thread(target=self.update)
+        self.t1.start()
         plt.show(block=True)
         exit(0)
 
-    def update(self, frame):
-        value = self.multimeter.read_value()
-        if "" == value:
-            print("Read Error!")
-            self.multimeter.reset()
+    def update(self):
+        while True:
+            try:
+                value = self.multimeter.read_value()
+            except:
+                print("Serial Error")
+                continue
+            if "" == value:
+                print("Read Error!")
+                self.multimeter.reset()
+                time.sleep(1)
+                continue
+            voltage = float(value)
+            print("value:", voltage)
+            current_time = time.time()
+            self.data['time'].append(current_time)
+            self.data['voltage'].append(voltage)
+
+    def plot_data(self, *f):
+        while True:
+            if self.data["time"].__len__() > 1000:
+                self.data["time"].pop(0)
+                self.data["voltage"].pop(0)
+            else:
+                break
+        if self.data["time"].__len__() == 0:
             return
-        voltage = float(value)
-        print("value:", voltage)
-        current_time = time.time()
-        self.data['time'].append(current_time)
-        self.data['voltage'].append(voltage)
-        if self.data["time"].__len__() > 500:
-            self.data["time"].pop(0)
-            self.data["voltage"].pop(0)
-
-        self.plot_data()
-
-    def plot_data(self):
         self.ax.clear()
         self.ax.set_xlabel("Time (s)")
         self.ax.set_ylabel("Voltage (V)")
