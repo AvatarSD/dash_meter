@@ -2,33 +2,35 @@ import serial
 import matplotlib.pyplot as plt
 import time
 from matplotlib.animation import FuncAnimation
+import matplotlib.ticker as ticker
+from statistics import mean 
 
 
 class HP34401A:
-    def __init__(self, port='/dev/ttyUSB0', baudrate=9600, timeout=1):
+    def __init__(self, port='/dev/ttyUSB0', baudrate=9600, timeout=10):
         self.ser = serial.Serial(
             port=port, baudrate=baudrate, timeout=timeout, stopbits=serial.STOPBITS_TWO)
 
-    def send_command(self, command):
+    def send_command(self, command, asyn=True):
         self.ser.write(command.encode() + b'\r\n')
-        return self.ser.readline().decode().strip()
+        return "" if asyn else self.ser.readline().decode().strip()
 
     def reset(self):
         self.ser.write('*RST\r\n'.encode())
         self.ser.write('*CLS\r\n'.encode())
-        time.sleep(0.1)
+        time.sleep(0.5)
 
     def remote(self):
-        self.send_command('SYST:REM?')
-        time.sleep(0.1)
+        self.ser.write('SYST:REM\r\n'.encode())
+        time.sleep(0.5)
 
     def set_voltage_dc_mode(self, range='DEF', resolution=0.001):
         # self.reset()
-        self.send_command('MEAS:VOLT:DC')
+        self.send_command('CONF:VOLT:DC')
         # self.send_command('VOLT:DC:RANGE ' + str(range))
         # self.send_command(':VOLT:DC:RES? ' + str(resolution))
         # self.send_command('MEAS:VOLT:DC? ' +  str(range) + str(",") + str(resolution))
-        self.send_command(':VOLT:DC:NPLC ' + str(0.02))
+        self.send_command(':VOLT:DC:NPLC ' + str(10))
 
     def set_current_dc_mode(self, range='AUTO', resolution=0.00001):
         self.send_command(':MEAS:CURR:DC')
@@ -51,7 +53,7 @@ class HP34401A:
         self.send_command(':MEAS:PER:RES ' + str(resolution))
 
     def read_value(self):
-        return self.send_command(':READ?')
+        return self.send_command(':READ?', asyn=False)
 
 
 class MultimeterData:
@@ -67,10 +69,7 @@ class MultimeterData:
 
     def start(self):
         print("Auto DC Volts measuring", self.multimeter.set_voltage_dc_mode())
-        # self.multimeter.set_voltage_resolution(self.multimeter.VoltageResolutionOption.RES_3_5_DIGITS)
-        # додаємо маркер останньої напруги
-        self.marker, = self.ax.plot(0, 0, 'ro')
-        self.ani = FuncAnimation(self.fig, self.update, interval=0, blit=False)
+        self.ani = FuncAnimation(self.fig, self.update, interval=0, blit=False, cache_frame_data=False)
         plt.show(block=True)
         exit(0)
 
@@ -78,6 +77,7 @@ class MultimeterData:
         value = self.multimeter.read_value()
         if "" == value:
             print("Read Error!")
+            self.multimeter.reset()
             return
         voltage = float(value)
         print("value:", voltage)
@@ -96,7 +96,16 @@ class MultimeterData:
         self.ax.set_xlabel("Time (s)")
         self.ax.set_ylabel("Voltage (V)")
         self.ax.plot(self.data["time"], self.data["voltage"])
-        self.marker.set_data(self.data["time"][-1], self.data["voltage"][-1])
+        self.ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%f'))
+        
+        self.ax.plot(self.data["time"][-1], self.data["voltage"][-1], "ro")
+        # text = f'{(self.data["voltage"][-1]):.9f} volt  '
+        # self.ax.text(self.data["time"][-1], self.data["voltage"][-1], text, ha='right', va='bottom', fontsize=15)
+
+        avg_volts = mean(self.data["voltage"])
+        text = f'Current: {(self.data["voltage"][-1]):.9f}v;  Mean: {(avg_volts):.9f}v'
+        self.ax.text(self.data["time"][-1], self.ax.get_ybound()[1], text, ha='right', va='top', fontsize=12)
+
         self.fig.canvas.draw()
 
 
